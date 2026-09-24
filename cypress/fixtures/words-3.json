@@ -1,0 +1,7 @@
+{
+  "words": [
+    { "word": "Food", "translation": "Comida", "sentence": "What is your favorite type of food?", "sentenceTranslation": "Qual é o seu tipo de comida favorito?" },
+    { "word": "Eat", "translation": "Comer", "sentence": "We eat dinner together every night.", "sentenceTranslation": "Nós jantamos juntos todas as noites." },
+    { "word": "Cook", "translation": "Cozinhar", "sentence": "I like to cook on weekends.", "sentenceTranslation": "Eu gosto de cozinhar nos fins de semana." }
+  ]
+}

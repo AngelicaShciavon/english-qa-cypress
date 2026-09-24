@@ -1,0 +1,5 @@
+[
+  { "id": "e2e-card-1", "category": "Ágil/Scrum", "english": "Sprint", "portuguese": "Sprint", "example_en": "Our sprint lasts two weeks.", "example_pt": "Nossa sprint dura duas semanas." },
+  { "id": "e2e-card-2", "category": "Ágil/Scrum", "english": "Backlog", "portuguese": "Backlog", "example_en": "Add this bug to the backlog.", "example_pt": "Adicione este bug ao backlog." },
+  { "id": "e2e-card-3", "category": "Bugs", "english": "Severity", "portuguese": "Severidade", "example_en": "This bug has high severity.", "example_pt": "Este bug tem alta severidade." }
+]

@@ -1,0 +1,8 @@
+// Ponto único de importação dos seletores: import { words, common } from '../selectors'
+export { common } from './common.selectors'
+export { auth } from './auth.selectors'
+export { words } from './words.selectors'
+export { pronunciation } from './pronunciation.selectors'
+export { flashcards } from './flashcards.selectors'
+export { docs } from './docs.selectors'
+export { premium } from './premium.selectors'

@@ -1,0 +1,26 @@
+{
+  "name": "english-qa-cypress",
+  "version": "1.0.0",
+  "description": "Automação E2E com Cypress da plataforma English QA (Qazando)",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "cy:open": "cypress open",
+    "cy:run": "cypress run",
+    "cy:run:chrome": "cypress run --browser chrome",
+    "test:gerador": "cypress run --spec cypress/e2e/gerador-palavras.cy.js",
+    "test:fala": "cypress run --spec cypress/e2e/treinar-fala.cy.js",
+    "test:flashcards": "cypress run --spec cypress/e2e/flashcards.cy.js",
+    "test:docs": "cypress run --spec cypress/e2e/documentacao.cy.js",
+    "test:premium": "cypress run --spec cypress/e2e/premium.cy.js",
+    "test:sair": "cypress run --spec cypress/e2e/sair.cy.js",
+    "cy:run:qase": "cross-env QASE_MODE=testops cypress run"
+  },
+  "devDependencies": {
+    "cypress": "^16.1.0",
+    "cypress-qase-reporter": "3.7.0",
+    "cross-env": "10.1.0"
+  }
+}

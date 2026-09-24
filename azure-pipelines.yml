@@ -1,0 +1,49 @@
+# Pipeline Azure DevOps: roda o Cypress e publica os resultados no Qase.
+#
+# Variáveis que precisam existir no pipeline (Pipelines > Edit > Variables),
+# marcadas como SECRETAS as senhas e o token:
+#   PREMIUM_PASSWORD, FREE_PASSWORD, ADMIN_PASSWORD, UNCONFIRMED_PASSWORD
+#   QASE_API_TOKEN      -> token gerado no Qase (Workspace > APIs / Apps)
+#   QASE_PROJECT_CODE   -> código do projeto no Qase (ex.: ENG)
+trigger:
+  - main
+
+pr:
+  - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '22.x'
+    displayName: 'Node 22'
+
+  - script: npm ci
+    displayName: 'Instalar dependências'
+
+  - script: npx cypress run --browser chrome
+    displayName: 'Executar Cypress e enviar ao Qase'
+    env:
+      # Credenciais lidas nos testes por cy.env()
+      CYPRESS_premiumEmail: ativo@teste.com
+      CYPRESS_premiumPassword: $(PREMIUM_PASSWORD)
+      CYPRESS_freeEmail: inativo@teste.com
+      CYPRESS_freePassword: $(FREE_PASSWORD)
+      CYPRESS_adminEmail: admin@teste.com
+      CYPRESS_adminPassword: $(ADMIN_PASSWORD)
+      CYPRESS_unconfirmedEmail: semconfirmar@teste.com
+      CYPRESS_unconfirmedPassword: $(UNCONFIRMED_PASSWORD)
+      # Qase: variáveis secretas do Azure só chegam ao script se mapeadas aqui
+      QASE_MODE: testops
+      QASE_TESTOPS_API_TOKEN: $(QASE_API_TOKEN)
+      QASE_TESTOPS_PROJECT: $(QASE_PROJECT_CODE)
+      QASE_TESTOPS_RUN_TITLE: 'Azure DevOps - $(Build.SourceBranchName) - build $(Build.BuildNumber)'
+
+  - task: PublishPipelineArtifact@1
+    condition: failed()
+    inputs:
+      targetPath: cypress/screenshots
+      artifact: cypress-screenshots
+    displayName: 'Publicar screenshots das falhas'
