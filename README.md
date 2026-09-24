@@ -76,7 +76,7 @@ O reporter oficial é o **`cypress-qase-reporter`** (não existe pacote `qase-cy
 
 ### Fluxo
 
-1. Push ou Pull Request na `main` dispara o pipeline do Azure DevOps.
+1. Push ou Pull Request na `main` dispara a pipeline (GitHub Actions ou Azure DevOps).
 2. O pipeline roda `npx cypress run` com `QASE_MODE=testops`.
 3. O reporter cria uma **Test Run** no Qase e envia o status de cada teste (com screenshots das falhas).
 4. Ao final, a run é concluída automaticamente (`run.complete: true`).
@@ -84,21 +84,21 @@ O reporter oficial é o **`cypress-qase-reporter`** (não existe pacote `qase-cy
 ### Passo a passo
 
 1. **Token:** no Qase, gere um API token (Workspace > APIs/Apps).
-2. **Casos no Qase:** cadastre (ou importe) os casos da planilha. Cada caso recebe um número (ex.: `ENG-12` → **12**).
+2. **Casos no Qase:** cadastre (ou importe) os casos da planilha. Cada caso recebe um número (ex.: `G2-278` → **278**).
 3. **Mapeamento:** em `cypress/support/qase/qase-ids.js`, troque o `null` do ID da planilha pelo número do Qase:
-   ```js
-   GP01: 12,
-   ```
+```js
+   GP01: 278,
+```
 4. **Nos testes**, o título é montado pelo helper `tc()`, que também faz o vínculo:
-   ```js
+```js
    import { tc } from '../support/qase'
 
    it(tc('GP01', 'gera 10 palavras'), () => { ... })
-   // título: "GP01 - gera 10 palavras", vinculado ao caso 12 do Qase
+   // título: "GP01 - gera 10 palavras", vinculado ao caso G2-278 do Qase
    it(tc(['SA01', 'SA04'], 'encerra a sessão'), () => { ... }) // vários casos
-   ```
+```
    Enquanto o ID estiver `null`, o teste roda normalmente, mas não fica vinculado a um caso.
-5. **Secrets no Azure DevOps:** crie `QASE_API_TOKEN` (secreta) e `QASE_PROJECT_CODE`. O `azure-pipelines.yml` já repassa como `QASE_TESTOPS_API_TOKEN` e `QASE_TESTOPS_PROJECT`.
+5. **Secrets da pipeline:** crie `QASE_API_TOKEN` (secreto) e `QASE_PROJECT_CODE` = `G2`. Os arquivos de pipeline repassam esses valores como `QASE_TESTOPS_API_TOKEN` e `QASE_TESTOPS_PROJECT`.
 
 ### Rodar localmente enviando ao Qase
 
@@ -106,31 +106,31 @@ Por padrão (`QASE_MODE` vazio = `off`), rodar local **não envia nada**. Para e
 
 ```bash
 # Linux/macOS
-QASE_TESTOPS_API_TOKEN=seu_token QASE_TESTOPS_PROJECT=ENG npm run cy:run:qase
+QASE_TESTOPS_API_TOKEN=seu_token QASE_TESTOPS_PROJECT=G2 npm run cy:run:qase
 ```
 ```powershell
 # Windows PowerShell
-$env:QASE_TESTOPS_API_TOKEN="seu_token"; $env:QASE_TESTOPS_PROJECT="ENG"; npm run cy:run:qase
+$env:QASE_TESTOPS_API_TOKEN="seu_token"; $env:QASE_TESTOPS_PROJECT="G2"; npm run cy:run:qase
 ```
 
 ### Recursos extras do reporter (opcionais)
 
 Dentro de um `it()` é possível usar `qase.step('...', () => {...})`, `qase.fields({ severity: 'critical' })` e `qase.attach(...)`. Importe com `import { qase } from '../support/qase'`.
 
+## CI no GitHub Actions
+
+O arquivo `.github/workflows/cypress.yml` roda os testes no Chrome em todo push e PR na `main`, e também manualmente pela aba **Actions**.
+
+Configure em **Settings > Secrets and variables > Actions**:
+
+| Tipo | Nome | Valor |
+|---|---|---|
+| Secret | `PREMIUM_PASSWORD`, `FREE_PASSWORD`, `ADMIN_PASSWORD` | Senhas dos usuários de teste |
+| Secret | `QASE_API_TOKEN` | Token do Qase (sem ele, a pipeline roda mas não envia ao Qase) |
+| Variable | `QASE_PROJECT_CODE` | `G2` |
+
+Quando algum teste falha, os screenshots ficam no artefato **cypress-screenshots** da execução.
+
 ## CI (Azure DevOps)
 
 O `azure-pipelines.yml` roda os testes em headless em push e PR na `main`. As senhas e o token do Qase entram como variáveis secretas. No Azure, variável secreta só chega ao script se for mapeada em `env:`, e é por isso que elas estão listadas lá. O `cy.env()` lê as variáveis com prefixo `CYPRESS_`.
-
-## Perfis de teste
-
-A variável `USER_PROFILES`, em `cypress/support/utils/users.js`, centraliza premium, free e admin. Os títulos das suítes identificam o perfil executado.
-
-- Gerador de Palavras, Treinar Fala e Flashcards: premium e admin executam os cenários funcionais; free verifica o bloqueio de acesso.
-- Documentação e Sair: os cenários executam para os três perfis.
-- Premium: preserva os cenários específicos de cada perfil.
-
-`hasPremium` descreve o acesso esperado; não concede permissões. E-mails e senhas permanecem em `cypress.env.json`, nas chaves `emailKey` e `passwordKey`. Cada perfil possui sua própria sessão.
-
-O perfil `unconfirmed` também integra `USER_PROFILES`. `AUTHENTICATED_PROFILES` seleciona apenas premium, free e admin para cenários autenticados. O spec `login.cy.js` usa `unconfirmedEmail` e `unconfirmedPassword` e exige a resposta real `email_not_confirmed`, permanência em `/auth` e ausência de sessão. `invalid_credentials` indica que a conta de teste precisa ser corrigida no ambiente.
-
-No Azure DevOps, configure também a variável secreta `UNCONFIRMED_PASSWORD`; o pipeline a encaminha para o novo perfil.

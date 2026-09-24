@@ -1,0 +1,46 @@
+name: Cypress E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # permite rodar manualmente pela aba Actions
+
+jobs:
+  cypress-run:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v7
+
+      - name: Instalar Node 24 (Cypress 16 exige Node 22+)
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Instalar dependências e rodar o Cypress
+        uses: cypress-io/github-action@v7
+        with:
+          browser: chrome
+        env:
+          # Credenciais lidas nos testes com cy.env()
+          CYPRESS_premiumEmail: ativo@teste.com
+          CYPRESS_premiumPassword: ${{ secrets.PREMIUM_PASSWORD }}
+          CYPRESS_freeEmail: inativo@teste.com
+          CYPRESS_freePassword: ${{ secrets.FREE_PASSWORD }}
+          CYPRESS_adminEmail: admin@teste.com
+          CYPRESS_adminPassword: ${{ secrets.ADMIN_PASSWORD }}
+          # Qase: só envia resultados se o secret QASE_API_TOKEN existir
+          QASE_MODE: ${{ secrets.QASE_API_TOKEN != '' && 'testops' || 'off' }}
+          QASE_TESTOPS_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+          QASE_TESTOPS_PROJECT: ${{ vars.QASE_PROJECT_CODE }}
+          QASE_TESTOPS_RUN_TITLE: GitHub Actions - ${{ github.ref_name }} - run ${{ github.run_number }}
+
+      - name: Salvar screenshots das falhas
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots
+          if-no-files-found: ignore 
