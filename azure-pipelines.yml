@@ -1,49 +1,144 @@
-# Pipeline Azure DevOps: roda o Cypress e publica os resultados no Qase.
-#
-# Variáveis que precisam existir no pipeline (Pipelines > Edit > Variables),
-# marcadas como SECRETAS as senhas e o token:
-#   PREMIUM_PASSWORD, FREE_PASSWORD, ADMIN_PASSWORD, UNCONFIRMED_PASSWORD
-#   QASE_API_TOKEN      -> token gerado no Qase (Workspace > APIs / Apps)
-#   QASE_PROJECT_CODE   -> código do projeto no Qase (ex.: ENG)
-trigger:
-  - main
+name: Cypress E2E
 
-pr:
-  - main
-
-pool:
-  vmImage: ubuntu-latest
-
-steps:
-  - task: NodeTool@0
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Todo dia útil às 07:00 (horário de Brasília = 10:00 UTC)
+    - cron: '0 10 * * 1-5'
+  workflow_dispatch:
+    # Execução manual pela aba Actions, com opções
     inputs:
-      versionSpec: '22.x'
-    displayName: 'Node 22'
+      spec:
+        description: 'Qual spec rodar'
+        type: choice
+        default: 'todos'
+        options:
+          - todos
+          - cypress/e2e/gerador-palavras.cy.js
+          - cypress/e2e/treinar-fala.cy.js
+          - cypress/e2e/flashcards.cy.js
+          - cypress/e2e/documentacao.cy.js
+          - cypress/e2e/premium.cy.js
+          - cypress/e2e/sair.cy.js
+      browser:
+        description: 'Navegador'
+        type: choice
+        default: chrome
+        options:
+          - chrome
+          - edge
+          - electron
+      enviar_qase:
+        description: 'Enviar resultados para o Qase?'
+        type: boolean
+        default: true
 
-  - script: npm ci
-    displayName: 'Instalar dependências'
+# Se alguém subir código de novo na mesma branch, cancela a execução antiga
+concurrency:
+  group: cypress-${{ github.ref }}
+  cancel-in-progress: true
 
-  - script: npx cypress run --browser chrome
-    displayName: 'Executar Cypress e enviar ao Qase'
-    env:
-      # Credenciais lidas nos testes por cy.env()
-      CYPRESS_premiumEmail: ativo@teste.com
-      CYPRESS_premiumPassword: $(PREMIUM_PASSWORD)
-      CYPRESS_freeEmail: inativo@teste.com
-      CYPRESS_freePassword: $(FREE_PASSWORD)
-      CYPRESS_adminEmail: admin@teste.com
-      CYPRESS_adminPassword: $(ADMIN_PASSWORD)
-      CYPRESS_unconfirmedEmail: semconfirmar@teste.com
-      CYPRESS_unconfirmedPassword: $(UNCONFIRMED_PASSWORD)
-      # Qase: variáveis secretas do Azure só chegam ao script se mapeadas aqui
-      QASE_MODE: testops
-      QASE_TESTOPS_API_TOKEN: $(QASE_API_TOKEN)
-      QASE_TESTOPS_PROJECT: $(QASE_PROJECT_CODE)
-      QASE_TESTOPS_RUN_TITLE: 'Azure DevOps - $(Build.SourceBranchName) - build $(Build.BuildNumber)'
+# Menor privilégio: a pipeline só precisa ler o código
+permissions:
+  contents: read
 
-  - task: PublishPipelineArtifact@1
-    condition: failed()
-    inputs:
-      targetPath: cypress/screenshots
-      artifact: cypress-screenshots
-    displayName: 'Publicar screenshots das falhas'
+# Valores usados pelos dois jobs
+env:
+  BROWSER: ${{ inputs.browser || 'chrome' }}
+  SPEC: ${{ (inputs.spec && inputs.spec != 'todos') && inputs.spec || '' }}
+  CYPRESS_premiumEmail: ativo@teste.com
+  CYPRESS_freeEmail: inativo@teste.com
+  CYPRESS_adminEmail: admin@teste.com
+  # Envia ao Qase (se o secret QASE_API_TOKEN existir) em push/PR e na execução manual (se marcado).
+  # Execuções agendadas NÃO enviam, para não encher o projeto G2 (compartilhado) com uma run por dia.
+  QASE_MODE: ${{ (secrets.QASE_API_TOKEN != '' && (github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.enviar_qase))) && 'testops' || 'off' }}
+  QASE_TESTOPS_PROJECT: ${{ vars.QASE_PROJECT_CODE }}
+
+jobs:
+  # 1) REGRESSÃO: tudo, menos os testes [BUG]. Este job PRECISA passar.
+  regressao:
+    name: Regressão
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # As ações são fixadas pelo commit (SHA) por segurança; o comentário mostra a versão.
+      # O Dependabot (.github/dependabot.yml) atualiza SHA e comentário automaticamente.
+      - name: Baixar o código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Instalar Node 24 (Cypress 16 exige Node 22+)
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Rodar testes de regressão
+        uses: cypress-io/github-action@01e3b659a495b41649cdd0aa82e1d1624e26520b # v7.4.4
+        with:
+          browser: ${{ env.BROWSER }}
+          spec: ${{ env.SPEC }}
+          expose: grep=-[BUG],grepOmitFiltered=true
+        env:
+          CYPRESS_premiumPassword: ${{ secrets.PREMIUM_PASSWORD }}
+          CYPRESS_freePassword: ${{ secrets.FREE_PASSWORD }}
+          CYPRESS_adminPassword: ${{ secrets.ADMIN_PASSWORD }}
+          QASE_TESTOPS_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+          QASE_TESTOPS_RUN_TITLE: Regressão - ${{ github.event_name }} - ${{ github.ref_name }} - ${{ env.BROWSER }} - run ${{ github.run_number }}.${{ github.run_attempt }}
+
+      - name: Salvar relatório JUnit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-regressao-${{ github.run_number }}-${{ github.run_attempt }}
+          path: cypress/results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Salvar screenshots das falhas
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: screenshots-regressao-${{ github.run_number }}-${{ github.run_attempt }}
+          path: cypress/screenshots
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # 2) BUGS CONHECIDOS: só os testes [BUG]. Falhar aqui é esperado e NÃO deixa a pipeline vermelha.
+  #    Quando um bug for corrigido, o teste passa, e o time pode tirar o [BUG] do título.
+  bugs-conhecidos:
+    name: Bugs conhecidos (não bloqueia)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Instalar Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Rodar testes de bugs conhecidos
+        uses: cypress-io/github-action@01e3b659a495b41649cdd0aa82e1d1624e26520b # v7.4.4
+        with:
+          browser: ${{ env.BROWSER }}
+          spec: ${{ env.SPEC }}
+          expose: grep=[BUG],grepOmitFiltered=true
+        env:
+          CYPRESS_premiumPassword: ${{ secrets.PREMIUM_PASSWORD }}
+          CYPRESS_freePassword: ${{ secrets.FREE_PASSWORD }}
+          CYPRESS_adminPassword: ${{ secrets.ADMIN_PASSWORD }}
+          QASE_TESTOPS_API_TOKEN: ${{ secrets.QASE_API_TOKEN }}
+          QASE_TESTOPS_RUN_TITLE: Bugs conhecidos - ${{ github.event_name }} - ${{ github.ref_name }} - ${{ env.BROWSER }} - run ${{ github.run_number }}.${{ github.run_attempt }}
+
+      - name: Salvar relatório JUnit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-bugs-${{ github.run_number }}-${{ github.run_attempt }}
+          path: cypress/results
+          if-no-files-found: ignore
+          retention-days: 14 

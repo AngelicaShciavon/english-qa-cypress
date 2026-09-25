@@ -1,6 +1,7 @@
 const { defineConfig } = require('cypress')
+const { plugin: cypressGrepPlugin } = require('@cypress/grep/plugin')
 
-// Os segredos do Qase vêm SEMPRE de variáveis de ambiente (nunca escreva o token aqui).
+// Opções do Qase. Os segredos vêm SEMPRE de variáveis de ambiente (nunca escreva o token aqui).
 // Localmente o padrão é QASE_MODE=off: os testes rodam sem enviar nada ao Qase.
 const qaseReporterOptions = {
   mode: process.env.QASE_MODE || 'off',
@@ -24,8 +25,18 @@ const qaseReporterOptions = {
 }
 
 module.exports = defineConfig({
-  reporter: require.resolve('cypress-qase-reporter'),
-  reporterOptions: qaseReporterOptions,
+  // 3 reporters ao mesmo tempo:
+  // - spec: mostra cada teste e o erro no terminal / log da pipeline
+  // - mocha-junit-reporter: gera XML (padrão de mercado) em cypress/results
+  // - cypress-qase-reporter: envia os resultados para o Qase
+  reporter: 'cypress-multi-reporters',
+  reporterOptions: {
+    reporterEnabled: 'spec, mocha-junit-reporter, cypress-qase-reporter',
+    mochaJunitReporterReporterOptions: {
+      mochaFile: 'cypress/results/junit-[hash].xml',
+    },
+    cypressQaseReporterReporterOptions: qaseReporterOptions,
+  },
   e2e: {
     baseUrl: 'https://english.qazando.com.br',
     specPattern: 'cypress/e2e/**/*.cy.js',
@@ -40,7 +51,9 @@ module.exports = defineConfig({
     video: false,
     screenshotOnRunFailure: true,
     setupNodeEvents(on, config) {
-      // Plugins do Qase: enviam resultados, screenshots e metadados (steps, fields...)
+      // Filtro de testes por título (ex.: separar os testes [BUG])
+      cypressGrepPlugin(config)
+      // Plugins do Qase: enviam resultados, screenshots e metadados
       require('cypress-qase-reporter/plugin')(on, config)
       require('cypress-qase-reporter/metadata')(on)
       return config

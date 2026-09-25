@@ -16,11 +16,16 @@
     "test:docs": "cypress run --spec cypress/e2e/documentacao.cy.js",
     "test:premium": "cypress run --spec cypress/e2e/premium.cy.js",
     "test:sair": "cypress run --spec cypress/e2e/sair.cy.js",
-    "cy:run:qase": "cross-env QASE_MODE=testops cypress run"
+    "cy:run:qase": "cross-env QASE_MODE=testops cypress run",
+    "test:regressao": "cypress run --browser chrome --expose grep=-[BUG],grepOmitFiltered=true",
+    "test:bugs": "cypress run --browser chrome --expose grep=[BUG],grepOmitFiltered=true"
   },
   "devDependencies": {
-    "cypress": "^16.1.0",
+    "@cypress/grep": "7.0.0",
+    "cross-env": "10.1.0",
+    "cypress": "16.1.0",
+    "cypress-multi-reporters": "2.0.5",
     "cypress-qase-reporter": "3.7.0",
-    "cross-env": "10.1.0"
+    "mocha-junit-reporter": "2.2.1"
   }
 }
