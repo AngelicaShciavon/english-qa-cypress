@@ -39,7 +39,7 @@ jobs:
 
       - name: Salvar screenshots das falhas
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: cypress-screenshots
           path: cypress/screenshots
